@@ -46,9 +46,6 @@
   .item .name{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px;}
   .item .name .dot{width:9px;height:9px;min-width:9px;border-radius:50%;}
   .item .sub{font-size:11.5px;color:var(--muted);margin-top:2px;margin-left:16px;}
-  .item .flag{display:inline-block;margin-left:16px;margin-top:3px;font-size:10.5px;font-weight:700;padding:1px 6px;border-radius:4px;}
-  .flag.corrected{background:#fde3e3;color:#a02020;}
-  .flag.verified{background:#dff3e3;color:#1a7a34;}
   #map{flex:1;}
   .popup h3{margin:0 0 4px 0;font-size:15px;color:var(--navy);}
   .popup .meta{font-size:12px;color:var(--muted);margin-bottom:8px;}
@@ -56,12 +53,6 @@
   .popup table td{padding:2px 6px 2px 0;vertical-align:top;}
   .popup table td.k{color:var(--muted);white-space:nowrap;}
   .popup .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;color:#fff;}
-  .popup .note{margin-top:8px;padding:7px 9px;background:#fff6e5;border-left:3px solid var(--gold);font-size:11.5px;line-height:1.4;border-radius:3px;}
-  .popup .note.corr{background:#fdeaea;border-left-color:#c0392b;}
-  #notesToggle{padding:10px 18px;border-top:1px solid var(--border);font-size:12px;color:var(--navy);cursor:pointer;font-weight:600;background:#f7f9fc;}
-  #notesPanel{display:none;padding:12px 18px;font-size:11.5px;line-height:1.5;color:var(--muted);border-top:1px solid var(--border);max-height:220px;overflow-y:auto;background:#fafbfd;}
-  #notesPanel b{color:var(--text);}
-  #notesPanel ul{margin:6px 0;padding-left:18px;}
   .leaflet-popup-content{margin:12px 14px;}
   .county-tip{font-weight:700;color:#7a1f2b;font-size:11.5px;background:#fff;border:1px solid #7a1f2b;}
 
@@ -133,8 +124,6 @@
     </div>
     <div id="count"></div>
     <div id="list"></div>
-    <div id="notesToggle">▸ Data validation notes</div>
-    <div id="notesPanel"></div>
   </div>
   <button id="sidebarToggle" aria-label="Open menu">☰</button>
   <div id="sidebarBackdrop"></div>
@@ -176,9 +165,8 @@ let searchTerm = '';
 const LOGO_YELLOW = '#fcd96b';
 const STAR_POINTS = '12,1 15.09,8.26 23,9.27 17,14.97 18.53,22.82 12,19 5.47,22.82 7,14.97 1,9.27 8.91,8.26';
 
-function makeIcon(cls, flagged){
+function makeIcon(cls){
   if(cls === 'BOCES'){
-    const ringFilter = flagged ? 'drop-shadow(0 0 0 3px #c0392b)' : '';
     return L.divIcon({
       className:'',
       html:`<svg width="26" height="26" viewBox="0 0 24 24" style="overflow:visible;filter:drop-shadow(0 1px 2px rgba(0,0,0,.4));">
@@ -188,7 +176,7 @@ function makeIcon(cls, flagged){
     });
   }
   const color = CLASS_COLOR[cls] || '#888';
-  const ring = flagged ? '0 0 0 3px #c0392b' : '0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.25)';
+  const ring = '0 0 0 2px #fff, 0 0 0 3px rgba(0,0,0,.25)';
   return L.divIcon({
     className:'',
     html:`<div style="width:18px;height:18px;border-radius:50%;background:${color};box-shadow:${ring};"></div>`,
@@ -198,12 +186,6 @@ function makeIcon(cls, flagged){
 
 function popupHtml(d){
   const badgeColor = CLASS_COLOR[d.classification] || '#888';
-  let noteHtml = '';
-  if(d.note){
-    const cls = d.verified === 'corrected' ? 'note corr' : 'note';
-    const label = d.verified === 'corrected' ? '⚠ Corrected from source file: ' : 'ℹ Validation note: ';
-    noteHtml = `<div class="${cls}"><b>${label}</b>${d.note}</div>`;
-  }
   return `
     <div class="popup">
       <h3>${d.district}</h3>
@@ -213,15 +195,12 @@ function popupHtml(d){
         <tr><td class="k">Address</td><td>${d.address}</td></tr>
         <tr><td class="k">Unified district</td><td>${d.unified_name || '—'}${d.unified_lea ? ' (LEA '+d.unified_lea+')' : ''}</td></tr>
         <tr><td class="k">Grades served</td><td>${d.grade_low && d.grade_high ? d.grade_low+' – '+d.grade_high : '—'}</td></tr>
-        <tr><td class="k">Pin source</td><td>${d.source || '—'}</td></tr>
       </table>
-      ${noteHtml}
     </div>`;
 }
 
 DATA.forEach(d=>{
-  const flagged = d.verified === 'corrected';
-  const marker = L.marker([d.lat, d.lon], {icon: makeIcon(d.classification, flagged)});
+  const marker = L.marker([d.lat, d.lon], {icon: makeIcon(d.classification)});
   marker.bindPopup(popupHtml(d), {maxWidth:320});
   markers[d.district] = {marker, data:d};
 });
@@ -300,14 +279,11 @@ function render(){
       visible++;
       const item = document.createElement('div');
       item.className = 'item';
-      const flagHtml = d.verified === 'corrected' ? '<span class="flag corrected">ADDRESS CORRECTED</span>'
-                        : (d.verified === 'verified' ? '<span class="flag verified">VERIFIED</span>' : '');
       const dotHtml = d.classification === 'BOCES'
         ? `<span style="color:${LOGO_YELLOW};-webkit-text-stroke:1px #1b2a4a;font-size:14px;line-height:1;">★</span>`
         : `<span class="dot" style="background:${CLASS_COLOR[d.classification]}"></span>`;
       item.innerHTML = `<div class="name">${dotHtml}${d.district}</div>
-                         <div class="sub">${d.county} County · ${d.region}</div>
-                         ${flagHtml}`;
+                         <div class="sub">${d.county} County · ${d.region}</div>`;
       item.addEventListener('click', ()=>{
         map.setView([d.lat, d.lon], 13);
         marker.openPopup();
@@ -322,29 +298,6 @@ function render(){
 }
 
 render();
-
-// Notes panel
-const corrected = DATA.filter(d=>d.verified==='corrected');
-const nysed = DATA.filter(d=>(d.source||'').includes('NYS Education')).length;
-document.getElementById('notesPanel').innerHTML = `
-  <p><b>Pin locations (Aug 2026):</b> ${nysed} of ${DATA.length} pins use building-level points from the NYS Education Department's own facility registry (maintained by NYS ITS Geospatial Services) — the same dataset the state uses for its official schools/district-office maps — rather than street-address geocoding. Mahopac keeps its original geocoded pin (179 E Lake Blvd, rooftop-precision, confirmed a real MCSD office); NYSED's registry lists a different MCSD building at that same district.</p>
-  <p><b>District, County, Geographic Region and Classification</b> columns were provided as confirmed-accurate and used as-is.</p>
-  <p><b>Added after initial build:</b> <b>Garrison</b> was missing from the original source file entirely. Confirmed as a PNW BOCES component district (pnwboces.org) and added using NYSED's facility registry, gufs.org, and Wikipedia — note it serves grades K–8 only (students attend Haldane or James I. O'Neill HS by choice, tuition paid by the district).</p>
-  <p><b>Corrections made (shown in red on the map):</b></p>
-  <ul>
-    <li><b>Hyde Park</b> — source address (5 Cheney Rd) matched no HPCSD facility; corrected to the official office, 11 Boice Road, confirmed via hpcsd.org and NYSED's registry.</li>
-    <li><b>Millbrook</b> — source address (70 Church St) is actually Millbrook High School; corrected to the district office, 43 Alden Place, per NYSED's registry.</li>
-    <li><b>Bedford Central</b> — address was correct, but the original geocoded pin landed ~4 miles south near the Armonk/Byram Hills border; repositioned to NYSED's surveyed point for the actual office near Bedford Hills.</li>
-  </ul>
-  <p><b>Also confirmed:</b> Green Chimneys is a NYS §853 special education school (not a public unified district, so it carries no LEA code); Putnam|Northern Westchester BOCES headquarters matches both pnwboces.org and NYSED's registry; Yorktown's pin uses NYSED's listed street number (2725 Crompond Rd) vs. the source file's 2727.</p>
-  <p><b>Not independently re-verified:</b> Unified/Elementary/Secondary School District Name, LEA code, and grade-range columns reflect the source file's own Geocodio boundary lookups; a sample (Byram Hills, 3606060) matched NYSED/NCES records.</p>
-`;
-document.getElementById('notesToggle').addEventListener('click', ()=>{
-  const p = document.getElementById('notesPanel');
-  const open = p.style.display === 'block';
-  p.style.display = open ? 'none' : 'block';
-  document.getElementById('notesToggle').textContent = (open?'▸':'▾') + ' Data validation notes';
-});
 
 // Mobile collapsible sidebar
 const sidebarEl = document.getElementById('sidebar');
